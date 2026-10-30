@@ -23,6 +23,8 @@
     }
 
     img {
+      position: relative;
+      z-index: 1;
       max-width: 420px;
       width: 70%;
       height: auto;
@@ -59,6 +61,25 @@
   }
 }
 
+    /* ---- fall leaves ---- */
+    .leaves {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .leaves.back  { z-index: 0; }
+    .leaves.front { z-index: 2; }
+
+    .leaf {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+    .leaf svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
     /* accessibility: reduce motion */
     @media (prefers-reduced-motion: reduce) {
       img {
@@ -72,7 +93,196 @@
 </head>
 <body>
 
-  <img src="daPhox.png" alt="daPhox">
+  <div class="leaves back" id="back"></div>
+  <img src="daPhox.png" alt="daPhox" id="logo">
+  <div class="leaves front" id="front"></div>
+
+  <script>
+  (function () {
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var logo = document.getElementById('logo');
+    var back = document.getElementById('back');
+    var front = document.getElementById('front');
+
+    var COLORS = {
+      rust:   ['#B8321E', '#7A1E12'],
+      orange: ['#E2621B', '#9C3A0E'],
+      amber:  ['#EE9A1C', '#A8600C'],
+      gold:   ['#F4C542', '#B08414'],
+      brown:  ['#9A5523', '#5E3010']
+    };
+    var COLOR_NAMES = Object.keys(COLORS);
+
+    var MAPLE = 'M0,-50 L8,-35 L16,-38 L12,-14 L28,-28 L32,-20 L46,-24 L40,-8 L48,-4 L26,14 L30,24 L4,20 L3,46 L-3,46 L-4,20 L-30,24 L-26,14 L-48,-4 L-40,-8 L-46,-24 L-32,-20 L-28,-28 L-12,-14 L-16,-38 L-8,-35 Z';
+    var MAPLE_VEINS = 'M0,40 L0,-42 M0,8 L38,-14 M0,8 L-38,-14 M0,18 L24,20 M0,18 L-24,20';
+    var OVAL = 'M0,-50 C32,-28 30,24 0,44 C-30,24 -32,-28 0,-50 Z M0,44 L0,56';
+    var OVAL_VEINS = 'M0,52 L0,-40 M0,0 L14,-14 M0,0 L-14,-14 M0,18 L14,4 M0,18 L-14,4';
+
+    function makeLeaf(color, kind, size, layer) {
+      var c = COLORS[color];
+      var el = document.createElement('div');
+      el.className = 'leaf';
+      el.style.width = el.style.height = size + 'px';
+      el.innerHTML =
+        '<svg viewBox="-60 -60 120 120">' +
+        '<path d="' + (kind === 'oval' ? OVAL : MAPLE) + '" fill="' + c[0] + '" stroke="#111" stroke-width="5" stroke-linejoin="round"/>' +
+        '<path d="' + (kind === 'oval' ? OVAL_VEINS : MAPLE_VEINS) + '" fill="none" stroke="' + c[1] + '" stroke-width="3" stroke-linecap="round"/>' +
+        '</svg>';
+      layer.appendChild(el);
+      return el;
+    }
+
+    function place(el, x, y, size, rot, opacity) {
+      el.style.transform = 'translate(' + (x - size / 2) + 'px,' + (y - size / 2) + 'px) rotate(' + rot + 'deg)';
+      el.style.opacity = opacity;
+    }
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    /* Leaves around the badge. x, y, size are fractions of the logo's width;
+       rot in degrees. stay:true never falls (it covers the little sparkle). */
+    var CLUSTER = [
+      { x: 0.125, y: 0.649, s: 0.182, r: -35, c: 'rust',   k: 'maple' },
+      { x: 0.216, y: 0.768, s: 0.153, r: 15,  c: 'amber',  k: 'maple' },
+      { x: 0.051, y: 0.535, s: 0.125, r: -75, c: 'gold',   k: 'oval'  },
+      { x: 0.068, y: 0.763, s: 0.114, r: -10, c: 'brown',  k: 'oval'  },
+      { x: 0.864, y: 0.234, s: 0.182, r: 30,  c: 'orange', k: 'maple' },
+      { x: 0.949, y: 0.370, s: 0.142, r: 72,  c: 'gold',   k: 'maple' },
+      { x: 0.744, y: 0.115, s: 0.119, r: 10,  c: 'rust',   k: 'oval'  },
+      { x: 0.960, y: 0.189, s: 0.108, r: 55,  c: 'brown',  k: 'oval'  },
+      { x: 0.159, y: 0.183, s: 0.108, r: -25, c: 'amber',  k: 'oval'  },
+      { x: 0.892, y: 0.723, s: 0.119, r: 40,  c: 'rust',   k: 'maple' },
+      { x: 0.234, y: 0.502, s: 0.085, r: -18, c: 'orange', k: 'maple', stay: true, front: true }
+    ];
+
+    var now = performance.now() / 1000;
+    var cluster = CLUSTER.map(function (d) {
+      return {
+        d: d,
+        el: makeLeaf(d.c, d.k, 10, d.front ? front : back),
+        state: 'grow',
+        t0: now + 0.8 + Math.random() * 1.2,   // appear with the logo intro
+        nextDrop: now + rand(4, 16),
+        phase: Math.random() * 6.28
+      };
+    });
+
+    var falling = [];   // leaves currently falling
+
+    function startFall(el, x, y, size, rot, owner) {
+      falling.push({
+        el: el, size: size, owner: owner,
+        x0: x, y: y, vy: rand(10, 25), vmax: rand(55, 95),
+        amp: rand(25, 70), freq: rand(0.9, 1.7), t: 0,
+        rot0: rot - 25, spin: rand(-40, 40), opacity: 1
+      });
+    }
+
+    function spawnAmbient() {
+      var size = rand(18, 40);
+      var layer = Math.random() < 0.6 ? back : front;
+      var el = makeLeaf(COLOR_NAMES[Math.floor(Math.random() * COLOR_NAMES.length)],
+                        Math.random() < 0.65 ? 'maple' : 'oval', size, layer);
+      var leaf = {
+        el: el, size: size, owner: null,
+        x0: rand(-40, window.innerWidth + 40), y: -50, vy: rand(30, 50), vmax: rand(45, 85),
+        amp: rand(30, 80), freq: rand(0.7, 1.5), t: rand(0, 6), rot0: rand(0, 360),
+        spin: rand(-60, 60), opacity: rand(0.75, 1)
+      };
+      falling.push(leaf);
+    }
+
+    function logoBox() {
+      var r = logo.getBoundingClientRect();
+      return { x: r.left, y: r.top, w: r.width };
+    }
+
+    if (reduceMotion) {
+      // Just show the leaves around the badge, no movement.
+      var show = function () {
+        var b = logoBox();
+        cluster.forEach(function (c) {
+          var size = c.d.s * b.w;
+          c.el.style.width = c.el.style.height = size + 'px';
+          place(c.el, b.x + c.d.x * b.w, b.y + c.d.y * b.w, size, c.d.r, 1);
+        });
+      };
+      if (logo.complete) show(); else logo.addEventListener('load', show);
+      window.addEventListener('resize', show);
+      return;
+    }
+
+    var last = performance.now() / 1000;
+    var nextAmbient = last + 1.5;
+
+    function frame(ms) {
+      var t = ms / 1000;
+      var dt = Math.min(t - last, 0.05);
+      last = t;
+      var b = logoBox();
+
+      // Leaves around the badge
+      cluster.forEach(function (c) {
+        var size = c.d.s * b.w;
+        var x = b.x + c.d.x * b.w;
+        var y = b.y + c.d.y * b.w;
+        var wobble = Math.sin(t * 1.6 + c.phase) * 4;
+
+        if (c.state === 'grow') {
+          var p = Math.max(0, Math.min(1, (t - c.t0) / 1.2));
+          var e = 1 - Math.pow(1 - p, 3);
+          c.el.style.width = c.el.style.height = size + 'px';
+          place(c.el, x, y, size * (0.4 + 0.6 * e), c.d.r + wobble, e);
+          c.el.style.width = c.el.style.height = (size * (0.4 + 0.6 * e)) + 'px';
+          if (p >= 1) c.state = 'attached';
+        } else if (c.state === 'attached') {
+          c.el.style.width = c.el.style.height = size + 'px';
+          place(c.el, x, y, size, c.d.r + wobble, 1);
+          if (!c.d.stay && t >= c.nextDrop) {
+            c.state = 'falling';
+            startFall(c.el, x, y, size, c.d.r + wobble, c);
+          }
+        }
+      });
+
+      // Falling leaves
+      for (var i = falling.length - 1; i >= 0; i--) {
+        var f = falling[i];
+        f.t += dt;
+        f.vy = Math.min(f.vy + 40 * dt, f.vmax);
+        f.y += f.vy * dt;
+        var sway = Math.sin(f.freq * f.t);
+        var fx = f.x0 + f.amp * sway;
+        var rot = f.rot0 + f.spin * f.t + 25 * Math.cos(f.freq * f.t);
+        place(f.el, fx, f.y, f.size, rot, f.opacity);
+
+        if (f.y > window.innerHeight + 60) {
+          falling.splice(i, 1);
+          if (f.owner) {
+            // grow back on the badge a while later
+            f.owner.state = 'grow';
+            f.owner.t0 = t + rand(3, 8);
+            f.owner.nextDrop = f.owner.t0 + rand(10, 25);
+            f.el.style.opacity = 0;
+          } else {
+            f.el.remove();
+          }
+        }
+      }
+
+      // New leaves drifting in from the top
+      var ambientCount = falling.filter(function (f) { return !f.owner; }).length;
+      if (t >= nextAmbient && ambientCount < 22) {
+        spawnAmbient();
+        nextAmbient = t + rand(0.5, 1.4);
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  })();
+  </script>
 
 </body>
 </html>
