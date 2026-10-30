@@ -22,12 +22,11 @@
       overflow: hidden;
     }
 
-    img {
+    .badge {
       position: relative;
       z-index: 1;
       max-width: 420px;
       width: 70%;
-      height: auto;
 
       /* start state */
       opacity: 0;
@@ -38,6 +37,16 @@
         intro 1.6s ease-out forwards,
         glow 5.5s ease-in-out 1.8s infinite;
     }
+    .badge img { display: block; width: 100%; height: auto; }
+    .badge .hat {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      display: none;
+    }
+    .season-winter .badge .hat { display: block; }
 
     /* fade + settle */
     @keyframes intro {
@@ -51,38 +60,48 @@
     @keyframes glow {
   0%, 100% {
     filter:
-      drop-shadow(0 0 14px rgba(255, 90, 60, 0.30))
-      drop-shadow(0 0 28px rgba(255, 90, 60, 0.20));
+      drop-shadow(0 0 14px var(--glow1))
+      drop-shadow(0 0 28px var(--glow2));
   }
   50% {
     filter:
-      drop-shadow(0 0 20px rgba(255, 90, 60, 0.65))
-      drop-shadow(0 0 40px rgba(255, 90, 60, 0.35));
+      drop-shadow(0 0 20px var(--glow3))
+      drop-shadow(0 0 40px var(--glow4));
   }
 }
+    body { --glow1: rgba(255,90,60,.30); --glow2: rgba(255,90,60,.20); --glow3: rgba(255,90,60,.65); --glow4: rgba(255,90,60,.35); }
+    body.season-winter { --glow1: rgba(150,200,255,.30); --glow2: rgba(150,200,255,.20); --glow3: rgba(170,215,255,.60); --glow4: rgba(150,200,255,.35); }
+    body.season-spring { --glow1: rgba(255,140,190,.30); --glow2: rgba(255,140,190,.20); --glow3: rgba(255,150,200,.60); --glow4: rgba(255,140,190,.35); }
+    body.season-summer { --glow1: rgba(255,200,70,.30);  --glow2: rgba(255,200,70,.20);  --glow3: rgba(255,210,80,.60);  --glow4: rgba(255,200,70,.35); }
 
-    /* ---- fall leaves ---- */
-    .leaves {
+    /* ---- seasonal decorations ---- */
+    .layer {
       position: fixed;
       inset: 0;
       pointer-events: none;
       overflow: hidden;
     }
-    .leaves.back  { z-index: 0; }
-    .leaves.front { z-index: 2; }
+    .layer.back  { z-index: 0; }
+    .layer.front { z-index: 2; }
 
-    .leaf {
+    .deco {
       position: absolute;
       left: 0;
       top: 0;
       opacity: 0;
       will-change: transform, opacity;
     }
-    .leaf svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .deco svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .snow { border-radius: 50%; background: #fff; }
+    .firefly {
+      border-radius: 50%;
+      background: #F1FFA8;
+      box-shadow: 0 0 6px 2px rgba(225,255,120,.85), 0 0 18px 6px rgba(200,255,90,.35);
+    }
 
     /* accessibility: reduce motion */
     @media (prefers-reduced-motion: reduce) {
-      img {
+      .badge {
         animation: none;
         opacity: 1;
         transform: scale(1);
@@ -93,104 +112,199 @@
 </head>
 <body>
 
-  <div class="leaves back" id="back"></div>
-  <img src="daPhox.png" alt="daPhox" id="logo">
-  <div class="leaves front" id="front"></div>
+  <div class="layer back" id="back"></div>
+
+  <div class="badge" id="logo">
+    <img src="daPhox.png" alt="daPhox">
+    <!-- Santa hat (winter only) -->
+    <svg class="hat" viewBox="0 0 1024 1024" aria-hidden="true">
+      <g transform="translate(0 8) rotate(-7 518 210)">
+        <path d="M382,214 C384,130 450,62 548,52 C640,44 712,86 748,150 C716,130 680,124 660,140 C652,160 654,186 660,210 Z"
+              fill="#D6262B" stroke="#111" stroke-width="9" stroke-linejoin="round"/>
+        <path d="M560,62 C640,60 700,96 735,140 C705,126 676,124 660,138 C640,110 610,80 560,62 Z" fill="#A3161C"/>
+        <path d="M362,206 C360,186 380,178 400,180 C470,176 560,174 640,176 C664,176 682,186 680,206 C682,228 664,238 640,238 C560,240 470,240 400,238 C378,238 362,228 362,206 Z"
+              fill="#F7F7F7" stroke="#111" stroke-width="9" stroke-linejoin="round"/>
+        <path d="M380,224 C460,232 580,232 664,222" fill="none" stroke="#D2D6DC" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="752" cy="158" r="34" fill="#F7F7F7" stroke="#111" stroke-width="9"/>
+        <path d="M736,174 C748,182 764,180 774,170" fill="none" stroke="#D2D6DC" stroke-width="6" stroke-linecap="round"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="layer front" id="front"></div>
 
   <script>
   (function () {
+    /* ---------- which season is it? ----------
+       Dec-Feb winter, Mar-May spring, Jun-Aug summer, Sep-Nov fall.
+       Preview any season with ?season=winter (or spring, summer, fall). */
+    var SEASONS = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer',
+                   'summer', 'summer', 'fall', 'fall', 'fall', 'winter'];
+    var override = (location.search.match(/season=(winter|spring|summer|fall)/) || [])[1];
+    var season = override || SEASONS[new Date().getMonth()];
+    document.body.classList.add('season-' + season);
+
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var logo = document.getElementById('logo');
     var back = document.getElementById('back');
     var front = document.getElementById('front');
 
-    var COLORS = {
-      rust:   ['#B8321E', '#7A1E12'],
-      orange: ['#E2621B', '#9C3A0E'],
-      amber:  ['#EE9A1C', '#A8600C'],
-      gold:   ['#F4C542', '#B08414'],
-      brown:  ['#9A5523', '#5E3010']
-    };
-    var COLOR_NAMES = Object.keys(COLORS);
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
 
+    /* ---------- shapes (drawn in a -60..60 box) ---------- */
     var MAPLE = 'M0,-50 L8,-35 L16,-38 L12,-14 L28,-28 L32,-20 L46,-24 L40,-8 L48,-4 L26,14 L30,24 L4,20 L3,46 L-3,46 L-4,20 L-30,24 L-26,14 L-48,-4 L-40,-8 L-46,-24 L-32,-20 L-28,-28 L-12,-14 L-16,-38 L-8,-35 Z';
     var MAPLE_VEINS = 'M0,40 L0,-42 M0,8 L38,-14 M0,8 L-38,-14 M0,18 L24,20 M0,18 L-24,20';
     var OVAL = 'M0,-50 C32,-28 30,24 0,44 C-30,24 -32,-28 0,-50 Z M0,44 L0,56';
     var OVAL_VEINS = 'M0,52 L0,-40 M0,0 L14,-14 M0,0 L-14,-14 M0,18 L14,4 M0,18 L-14,4';
+    var HOLLY = 'M-50,0 Q-40,-14 -30,-8 Q-25,-22 -12,-14 Q-4,-26 6,-14 Q16,-24 24,-10 Q36,-18 50,0 Q36,18 24,10 Q16,24 6,14 Q-4,26 -12,14 Q-25,22 -30,8 Q-40,14 -50,0 Z';
+    var PETAL = 'M0,-30 C20,-16 16,18 0,30 C-16,18 -20,-16 0,-30 Z';
 
-    function makeLeaf(color, kind, size, layer) {
-      var c = COLORS[color];
+    var LEAF_COLORS = {
+      rust: ['#B8321E', '#7A1E12'], orange: ['#E2621B', '#9C3A0E'], amber: ['#EE9A1C', '#A8600C'],
+      gold: ['#F4C542', '#B08414'], brown: ['#9A5523', '#5E3010'],
+      green: ['#4FA83D', '#2E6B22'], lime: ['#8CC63F', '#5A8A1E'], deep: ['#2F7D32', '#1B4D1E']
+    };
+
+    function leafSVG(kind, color) {
+      var c = LEAF_COLORS[color];
+      return '<path d="' + (kind === 'oval' ? OVAL : MAPLE) + '" fill="' + c[0] + '" stroke="#111" stroke-width="5" stroke-linejoin="round"/>' +
+             '<path d="' + (kind === 'oval' ? OVAL_VEINS : MAPLE_VEINS) + '" fill="none" stroke="' + c[1] + '" stroke-width="3" stroke-linecap="round"/>';
+    }
+    function flowerSVG(petals, rx, ry, cy, fill, center, centerR, dots) {
+      var s = '';
+      for (var i = 0; i < petals; i++) {
+        s += '<ellipse cx="0" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" transform="rotate(' + (360 / petals * i) + ')" fill="' + fill + '" stroke="#111" stroke-width="4"/>';
+      }
+      s += '<circle r="' + centerR + '" fill="' + center + '" stroke="#111" stroke-width="4"/>';
+      if (dots) for (var j = 0; j < 5; j++) {
+        var a = j * 72 * Math.PI / 180;
+        s += '<circle cx="' + (Math.sin(a) * centerR * 1.7).toFixed(1) + '" cy="' + (-Math.cos(a) * centerR * 1.7).toFixed(1) + '" r="3.5" fill="' + dots + '"/>';
+      }
+      return s;
+    }
+    var SHAPES = {
+      blossom: function (shade) { return flowerSVG(5, 20, 26, -24, shade || '#F9C4D6', '#D6457A', 9, '#FFE07A'); },
+      daisy:   function () { return flowerSVG(12, 8, 24, -28, '#FFFFFF', '#F4B400', 16); },
+      holly:   function () {
+        return '<g transform="rotate(-28) translate(-26,-6) scale(0.75)"><path d="' + HOLLY + '" fill="#2E7D32" stroke="#111" stroke-width="6" stroke-linejoin="round"/><path d="M-44,0 L44,0" stroke="#1B5E20" stroke-width="4"/></g>' +
+               '<g transform="rotate(28) translate(26,-6) scale(0.75)"><path d="' + HOLLY + '" fill="#388E3C" stroke="#111" stroke-width="6" stroke-linejoin="round"/><path d="M-44,0 L44,0" stroke="#1B5E20" stroke-width="4"/></g>' +
+               '<circle cx="-9" cy="10" r="11" fill="#D32F2F" stroke="#111" stroke-width="4"/>' +
+               '<circle cx="10" cy="12" r="11" fill="#C62828" stroke="#111" stroke-width="4"/>' +
+               '<circle cx="0" cy="-5" r="11" fill="#E53935" stroke="#111" stroke-width="4"/>';
+      },
+      flake: function () {
+        var arms = '';
+        for (var i = 0; i < 6; i++) {
+          arms += '<g transform="rotate(' + (i * 60) + ')"><path d="M0,0 L0,-46 M0,-22 L-12,-34 M0,-22 L12,-34 M0,-36 L-8,-44 M0,-36 L8,-44"/></g>';
+        }
+        return '<g fill="none" stroke-linecap="round"><g stroke="#111" stroke-width="12">' + arms + '</g><g stroke="#EAF4FF" stroke-width="6">' + arms + '</g></g>';
+      },
+      petal: function (shade) {
+        return '<path d="' + PETAL + '" fill="' + shade + '" stroke="#7a2a48" stroke-width="3"/><path d="M0,-18 L0,18" stroke="rgba(214,69,122,.5)" stroke-width="3"/>';
+      }
+    };
+
+    function makeDeco(inner, size, layer, cls) {
       var el = document.createElement('div');
-      el.className = 'leaf';
+      el.className = 'deco' + (cls ? ' ' + cls : '');
       el.style.width = el.style.height = size + 'px';
-      el.innerHTML =
-        '<svg viewBox="-60 -60 120 120">' +
-        '<path d="' + (kind === 'oval' ? OVAL : MAPLE) + '" fill="' + c[0] + '" stroke="#111" stroke-width="5" stroke-linejoin="round"/>' +
-        '<path d="' + (kind === 'oval' ? OVAL_VEINS : MAPLE_VEINS) + '" fill="none" stroke="' + c[1] + '" stroke-width="3" stroke-linecap="round"/>' +
-        '</svg>';
+      if (inner) el.innerHTML = '<svg viewBox="-60 -60 120 120">' + inner + '</svg>';
       layer.appendChild(el);
       return el;
     }
-
-    function place(el, x, y, size, rot, opacity) {
-      el.style.transform = 'translate(' + (x - size / 2) + 'px,' + (y - size / 2) + 'px) rotate(' + rot + 'deg)';
+    function place(el, x, y, size, rot, opacity, flip) {
+      el.style.width = el.style.height = size + 'px';
+      el.style.transform = 'translate(' + (x - size / 2) + 'px,' + (y - size / 2) + 'px) rotate(' + rot + 'deg)' +
+        (flip !== undefined ? ' scale(' + flip + ',1)' : '');
       el.style.opacity = opacity;
     }
 
-    function rand(a, b) { return a + Math.random() * (b - a); }
+    /* ---------- decorations around the badge, per season ----------
+       x, y, s are fractions of the logo's width; r is rotation.
+       The 'front' item covers the little sparkle on the left. */
+    var SPARKLE = { x: 0.234, y: 0.502, s: 0.085, front: true };
+    function L(kind, color) { return function () { return leafSVG(kind, color); }; }
 
-    /* Leaves around the badge. x, y, size are fractions of the logo's width;
-       rot in degrees. stay:true never falls (it covers the little sparkle). */
-    var CLUSTER = [
-      { x: 0.125, y: 0.649, s: 0.182, r: -35, c: 'rust',   k: 'maple' },
-      { x: 0.216, y: 0.768, s: 0.153, r: 15,  c: 'amber',  k: 'maple' },
-      { x: 0.051, y: 0.535, s: 0.125, r: -75, c: 'gold',   k: 'oval'  },
-      { x: 0.068, y: 0.763, s: 0.114, r: -10, c: 'brown',  k: 'oval'  },
-      { x: 0.864, y: 0.234, s: 0.182, r: 30,  c: 'orange', k: 'maple' },
-      { x: 0.949, y: 0.370, s: 0.142, r: 72,  c: 'gold',   k: 'maple' },
-      { x: 0.744, y: 0.115, s: 0.119, r: 10,  c: 'rust',   k: 'oval'  },
-      { x: 0.960, y: 0.189, s: 0.108, r: 55,  c: 'brown',  k: 'oval'  },
-      { x: 0.159, y: 0.183, s: 0.108, r: -25, c: 'amber',  k: 'oval'  },
-      { x: 0.892, y: 0.723, s: 0.119, r: 40,  c: 'rust',   k: 'maple' },
-      { x: 0.234, y: 0.502, s: 0.085, r: -18, c: 'orange', k: 'maple', stay: true, front: true }
-    ];
+    var CONFIG = {
+      fall: {
+        drops: true,
+        cluster: [
+          [0.125, 0.649, 0.182, -35, L('maple', 'rust')],
+          [0.216, 0.768, 0.153, 15,  L('maple', 'amber')],
+          [0.051, 0.535, 0.125, -75, L('oval', 'gold')],
+          [0.068, 0.763, 0.114, -10, L('oval', 'brown')],
+          [0.864, 0.234, 0.182, 30,  L('maple', 'orange')],
+          [0.949, 0.370, 0.142, 72,  L('maple', 'gold')],
+          [0.744, 0.115, 0.119, 10,  L('oval', 'rust')],
+          [0.960, 0.189, 0.108, 55,  L('oval', 'brown')],
+          [0.159, 0.183, 0.108, -25, L('oval', 'amber')],
+          [0.892, 0.723, 0.119, 40,  L('maple', 'rust')]
+        ],
+        sparkle: L('maple', 'orange'),
+        particle: 'leaf', max: 22, every: [0.5, 1.4]
+      },
+      winter: {
+        cluster: [
+          [0.075, 0.700, 0.240, -20, SHAPES.holly],
+          [0.060, 0.540, 0.110, 10,  SHAPES.flake],
+          [0.215, 0.790, 0.110, 25,  SHAPES.flake],
+          [0.925, 0.700, 0.240, 25,  SHAPES.holly],
+          [0.950, 0.560, 0.105, -15, SHAPES.flake],
+          [0.120, 0.230, 0.120, 0,   SHAPES.flake],
+          [0.930, 0.300, 0.095, 20,  SHAPES.flake]
+        ],
+        sparkle: SHAPES.flake,
+        particle: 'snow', max: 130, every: [0.04, 0.12], prefill: 80
+      },
+      spring: {
+        cluster: [
+          [0.120, 0.650, 0.170, -10, function () { return SHAPES.blossom(); }],
+          [0.215, 0.775, 0.135, 20,  function () { return SHAPES.blossom('#FFD6E4'); }],
+          [0.050, 0.540, 0.110, -60, L('oval', 'green')],
+          [0.070, 0.770, 0.110, -20, function () { return SHAPES.blossom('#F48FB1'); }],
+          [0.865, 0.235, 0.170, 15,  function () { return SHAPES.blossom(); }],
+          [0.950, 0.365, 0.130, 40,  function () { return SHAPES.blossom('#FFD6E4'); }],
+          [0.750, 0.110, 0.110, 20,  L('oval', 'lime')],
+          [0.960, 0.190, 0.100, 60,  L('oval', 'green')],
+          [0.160, 0.185, 0.110, -15, function () { return SHAPES.blossom('#F48FB1'); }],
+          [0.890, 0.725, 0.120, 30,  function () { return SHAPES.blossom(); }]
+        ],
+        sparkle: function () { return SHAPES.blossom('#FFD6E4'); },
+        particle: 'petal', max: 60, every: [0.12, 0.35], prefill: 35
+      },
+      summer: {
+        cluster: [
+          [0.120, 0.650, 0.175, -10, SHAPES.daisy],
+          [0.215, 0.775, 0.140, 15,  L('oval', 'green')],
+          [0.050, 0.540, 0.120, -70, L('oval', 'lime')],
+          [0.070, 0.770, 0.115, -20, SHAPES.daisy],
+          [0.865, 0.235, 0.175, 15,  SHAPES.daisy],
+          [0.950, 0.365, 0.135, 70,  L('oval', 'deep')],
+          [0.750, 0.110, 0.115, 10,  L('oval', 'green')],
+          [0.960, 0.190, 0.100, 55,  L('oval', 'lime')],
+          [0.160, 0.185, 0.115, -15, SHAPES.daisy],
+          [0.890, 0.725, 0.120, 30,  L('oval', 'deep')]
+        ],
+        sparkle: SHAPES.daisy,
+        particle: 'firefly', max: 30, every: [0.3, 0.9], prefill: 24
+      }
+    };
+    var cfg = CONFIG[season];
 
     var now = performance.now() / 1000;
-    var cluster = CLUSTER.map(function (d) {
+    var items = cfg.cluster.map(function (a) { return { x: a[0], y: a[1], s: a[2], r: a[3], draw: a[4] }; });
+    items.push({ x: SPARKLE.x, y: SPARKLE.y, s: SPARKLE.s, r: -18, draw: cfg.sparkle, stay: true, front: true });
+    var cluster = items.map(function (d) {
       return {
         d: d,
-        el: makeLeaf(d.c, d.k, 10, d.front ? front : back),
+        el: makeDeco(d.draw(), 10, d.front ? front : back),
         state: 'grow',
-        t0: now + 0.8 + Math.random() * 1.2,   // appear with the logo intro
+        t0: now + 0.8 + Math.random() * 1.2,
         nextDrop: now + rand(4, 16),
         phase: Math.random() * 6.28
       };
     });
-
-    var falling = [];   // leaves currently falling
-
-    function startFall(el, x, y, size, rot, owner) {
-      falling.push({
-        el: el, size: size, owner: owner,
-        x0: x, y: y, vy: rand(10, 25), vmax: rand(55, 95),
-        amp: rand(25, 70), freq: rand(0.9, 1.7), t: 0,
-        rot0: rot - 25, spin: rand(-40, 40), opacity: 1
-      });
-    }
-
-    function spawnAmbient() {
-      var size = rand(18, 40);
-      var layer = Math.random() < 0.6 ? back : front;
-      var el = makeLeaf(COLOR_NAMES[Math.floor(Math.random() * COLOR_NAMES.length)],
-                        Math.random() < 0.65 ? 'maple' : 'oval', size, layer);
-      var leaf = {
-        el: el, size: size, owner: null,
-        x0: rand(-40, window.innerWidth + 40), y: -50, vy: rand(30, 50), vmax: rand(45, 85),
-        amp: rand(30, 80), freq: rand(0.7, 1.5), t: rand(0, 6), rot0: rand(0, 360),
-        spin: rand(-60, 60), opacity: rand(0.75, 1)
-      };
-      falling.push(leaf);
-    }
 
     function logoBox() {
       var r = logo.getBoundingClientRect();
@@ -198,22 +312,66 @@
     }
 
     if (reduceMotion) {
-      // Just show the leaves around the badge, no movement.
       var show = function () {
         var b = logoBox();
         cluster.forEach(function (c) {
-          var size = c.d.s * b.w;
-          c.el.style.width = c.el.style.height = size + 'px';
-          place(c.el, b.x + c.d.x * b.w, b.y + c.d.y * b.w, size, c.d.r, 1);
+          place(c.el, b.x + c.d.x * b.w, b.y + c.d.y * b.w, c.d.s * b.w, c.d.r, 1);
         });
       };
-      if (logo.complete) show(); else logo.addEventListener('load', show);
+      if (document.readyState === 'complete') show(); else window.addEventListener('load', show);
       window.addEventListener('resize', show);
       return;
     }
 
+    /* ---------- moving particles ---------- */
+    var parts = [];
+    var W = function () { return window.innerWidth; };
+    var H = function () { return window.innerHeight; };
+
+    function spawn(prefill) {
+      var p, size;
+      var layer = Math.random() < 0.6 ? back : front;
+      if (cfg.particle === 'leaf') {
+        size = rand(18, 40);
+        p = { el: makeDeco(leafSVG(Math.random() < 0.65 ? 'maple' : 'oval', pick(['rust', 'orange', 'amber', 'gold', 'brown'])), size, layer),
+              x0: rand(-40, W() + 40), y: -50, vy: rand(30, 50), vmax: rand(45, 85), amp: rand(30, 80),
+              freq: rand(0.7, 1.5), t: rand(0, 6), rot0: rand(0, 360), spin: rand(-60, 60), op: rand(0.75, 1) };
+      } else if (cfg.particle === 'snow') {
+        var flake = Math.random() < 0.12;
+        size = flake ? rand(14, 24) : rand(3, 9);
+        p = { el: makeDeco(flake ? SHAPES.flake() : '', size, layer, flake ? '' : 'snow'),
+              x0: rand(-20, W() + 20), y: -20, vy: 20 + size * 4, vmax: 20 + size * 5, amp: rand(10, 35),
+              freq: rand(0.4, 1.0), t: rand(0, 6), rot0: rand(0, 360), spin: flake ? rand(-30, 30) : 0,
+              op: flake ? 0.9 : rand(0.45, 0.95) };
+        if (!flake && size < 5) p.el.style.filter = 'blur(1px)';
+      } else if (cfg.particle === 'petal') {
+        size = rand(18, 30);
+        p = { el: makeDeco(SHAPES.petal(pick(['#F9C4D6', '#FFD6E4', '#F48FB1', '#FBE3EC'])), size, layer),
+              x0: rand(-40, W() + 40), y: -30, vy: rand(25, 40), vmax: rand(35, 65), amp: rand(40, 90),
+              freq: rand(0.8, 1.6), t: rand(0, 6), rot0: rand(0, 360), spin: rand(-90, 90), op: rand(0.8, 1),
+              flutter: rand(1.2, 2.6) };
+      } else { // firefly
+        size = rand(4, 7);
+        p = { el: makeDeco('', size, layer, 'firefly'), firefly: true,
+              x0: rand(0, W()), y: H() + 20, vy: -rand(8, 22), ax: rand(20, 60), ay: rand(10, 30),
+              fx: rand(0.2, 0.6), fy: rand(0.3, 0.8), blink: rand(0.6, 1.6), t: rand(0, 20), life: 0 };
+      }
+      p.size = size;
+      if (prefill) {
+        p.y = p.firefly ? rand(0, H()) : rand(-20, H());
+        if (!p.firefly) p.vy = p.vmax;
+      }
+      parts.push(p);
+    }
+    for (var i = 0; i < (cfg.prefill || 0); i++) spawn(true);
+
+    function startFall(c, x, y, size, rot) {
+      parts.push({ el: c.el, size: size, owner: c, x0: x, y: y, vy: rand(10, 25), vmax: rand(55, 95),
+                   amp: rand(25, 70), freq: rand(0.9, 1.7), t: 0, rot0: rot - 25, spin: rand(-40, 40), op: 1 });
+    }
+
     var last = performance.now() / 1000;
-    var nextAmbient = last + 1.5;
+    var nextSpawn = last + 0.5;
 
     function frame(ms) {
       var t = ms / 1000;
@@ -221,45 +379,48 @@
       last = t;
       var b = logoBox();
 
-      // Leaves around the badge
+      // decorations around the badge
       cluster.forEach(function (c) {
-        var size = c.d.s * b.w;
-        var x = b.x + c.d.x * b.w;
-        var y = b.y + c.d.y * b.w;
+        var size = c.d.s * b.w, x = b.x + c.d.x * b.w, y = b.y + c.d.y * b.w;
         var wobble = Math.sin(t * 1.6 + c.phase) * 4;
-
         if (c.state === 'grow') {
           var p = Math.max(0, Math.min(1, (t - c.t0) / 1.2));
           var e = 1 - Math.pow(1 - p, 3);
-          c.el.style.width = c.el.style.height = size + 'px';
           place(c.el, x, y, size * (0.4 + 0.6 * e), c.d.r + wobble, e);
-          c.el.style.width = c.el.style.height = (size * (0.4 + 0.6 * e)) + 'px';
           if (p >= 1) c.state = 'attached';
         } else if (c.state === 'attached') {
-          c.el.style.width = c.el.style.height = size + 'px';
           place(c.el, x, y, size, c.d.r + wobble, 1);
-          if (!c.d.stay && t >= c.nextDrop) {
+          if (cfg.drops && !c.d.stay && t >= c.nextDrop) {
             c.state = 'falling';
-            startFall(c.el, x, y, size, c.d.r + wobble, c);
+            startFall(c, x, y, size, c.d.r + wobble);
           }
         }
       });
 
-      // Falling leaves
-      for (var i = falling.length - 1; i >= 0; i--) {
-        var f = falling[i];
+      // particles
+      for (var i = parts.length - 1; i >= 0; i--) {
+        var f = parts[i];
         f.t += dt;
-        f.vy = Math.min(f.vy + 40 * dt, f.vmax);
-        f.y += f.vy * dt;
-        var sway = Math.sin(f.freq * f.t);
-        var fx = f.x0 + f.amp * sway;
-        var rot = f.rot0 + f.spin * f.t + 25 * Math.cos(f.freq * f.t);
-        place(f.el, fx, f.y, f.size, rot, f.opacity);
-
-        if (f.y > window.innerHeight + 60) {
-          falling.splice(i, 1);
+        var gone;
+        if (f.firefly) {
+          f.life = Math.min(1, f.life + dt / 2);
+          f.y += f.vy * dt;
+          var fx = f.x0 + f.ax * Math.sin(f.fx * f.t), fy = f.y + f.ay * Math.sin(f.fy * f.t + 1.3);
+          var glow = Math.pow(Math.max(0, Math.sin(f.blink * f.t)), 2);
+          place(f.el, fx, fy, f.size, 0, f.life * (0.12 + 0.88 * glow));
+          gone = f.y < -40;
+        } else {
+          f.vy = Math.min(f.vy + 40 * dt, f.vmax);
+          f.y += f.vy * dt;
+          var sway = Math.sin(f.freq * f.t);
+          var rot = f.rot0 + f.spin * f.t + 25 * Math.cos(f.freq * f.t);
+          place(f.el, f.x0 + f.amp * sway, f.y, f.size, rot, f.op,
+                f.flutter ? (0.35 + 0.65 * Math.abs(Math.cos(f.flutter * f.t))).toFixed(3) : undefined);
+          gone = f.y > H() + 60;
+        }
+        if (gone) {
+          parts.splice(i, 1);
           if (f.owner) {
-            // grow back on the badge a while later
             f.owner.state = 'grow';
             f.owner.t0 = t + rand(3, 8);
             f.owner.nextDrop = f.owner.t0 + rand(10, 25);
@@ -270,16 +431,15 @@
         }
       }
 
-      // New leaves drifting in from the top
-      var ambientCount = falling.filter(function (f) { return !f.owner; }).length;
-      if (t >= nextAmbient && ambientCount < 22) {
-        spawnAmbient();
-        nextAmbient = t + rand(0.5, 1.4);
+      var free = 0;
+      for (var j = 0; j < parts.length; j++) if (!parts[j].owner) free++;
+      if (t >= nextSpawn && free < cfg.max) {
+        spawn(false);
+        nextSpawn = t + rand(cfg.every[0], cfg.every[1]);
       }
 
       requestAnimationFrame(frame);
     }
-
     requestAnimationFrame(frame);
   })();
   </script>
