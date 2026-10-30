@@ -345,7 +345,7 @@
         sparkle: function () { return SHAPES.star('#FFFFFF'); },
         particle: 'bee', max: 7, every: [0.4, 1.0], prefill: 5,
         fireworks: true,
-        visitors: ['fox', 'bunny', 'turtle', 'eagle']
+        visitors: ['bunny', 'turtle', 'eagle']
       }
     };
     var cfg = CONFIG[season];
@@ -480,8 +480,8 @@
       turtle: { svg: function () { return TURTLE; }, w: [115, 155], ground: true, speed: 45 },
       eagle:  { svg: function () { return EAGLE; }, w: [180, 240], sky: true, speed: 170 }
     };
-    var visitorPool = cfg.visitors || ['fox'];
-    var forceV = (location.search.match(/visitor=(fox|bunny|turtle|eagle)/) || [])[1];
+    var visitorPool = cfg.visitors || [];
+    var forceV = (location.search.match(/visitor=(bunny|turtle|eagle)/) || [])[1];
     if (forceV) visitorPool = [forceV];
 
     var now = performance.now() / 1000;
@@ -680,7 +680,7 @@
       }
 
       // animal visitors
-      if (!visitor && t >= nextVisitor) {
+      if (!visitor && visitorPool.length && t >= nextVisitor) {
         var kind = pick(visitorPool), V = VISITORS[kind];
         var vw = Math.min(V.w[1], Math.max(Math.min(V.w[0], W() * 0.36), W() * 0.17));
         var dir = Math.random() < 0.5 ? 1 : -1;
