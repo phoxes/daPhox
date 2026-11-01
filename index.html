@@ -174,6 +174,40 @@
     @keyframes fxTail { from { transform: rotate(-4deg); } to { transform: rotate(5deg); } }
     @keyframes fxHead { from { transform: rotate(-1.5deg); } to { transform: rotate(1.5deg); } }
 
+    /* live strip under the logo */
+    .live {
+      position: fixed;
+      z-index: 3;
+      left: 50%;
+      top: min(calc(50% + min(210px, 35vw) + 18px), calc(100% - 56px));
+      transform: translateX(-50%);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      width: min(92vw, 640px);
+      font: 500 14px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      animation: liveIn 1.2s ease-out both;
+    }
+    .live[hidden], .live a[hidden] { display: none; }
+    .live a {
+      max-width: 100%;
+      padding: 10px 14px;
+      overflow: hidden;
+      color: #fff;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: rgba(18,14,12,.85);
+      border: 1px solid var(--glow3);
+      border-radius: 99px;
+      box-shadow: 0 0 14px var(--glow2);
+      transition: border-color .2s;
+    }
+    .live a:hover, .live a:focus-visible { border-color: #fff; }
+    @keyframes liveIn { from { opacity: 0; } }
+    a.visitor { display: block; pointer-events: auto; cursor: pointer; }
+
     /* accessibility: reduce motion */
     @media (prefers-reduced-motion: reduce) {
       .badge {
@@ -182,6 +216,7 @@
         transform: scale(1);
         filter: none;
       }
+      .live { animation: none; }
     }
   </style>
 </head>
@@ -208,6 +243,11 @@
 
   <div class="layer front" id="front"></div>
 
+  <nav class="live" id="live" aria-label="Live from Flint Ridge" hidden>
+    <a id="liveWeather" href="https://weather.daphox.com/" hidden></a>
+    <a id="liveBirds" href="https://weather.daphox.com/#birds" hidden></a>
+  </nav>
+
   <script>
   (function () {
     /* ---------- which season is it? ----------
@@ -223,6 +263,53 @@
     var logo = document.getElementById('logo');
     var back = document.getElementById('back');
     var front = document.getElementById('front');
+
+    /* ---------- live strip: weather and birds from weather.daphox.com ---------- */
+    var API = 'https://weather.daphox.com';
+    var WEATHER_URL = 'https://weather.daphox.com/';
+    var BIRDS_URL = 'https://weather.daphox.com/#birds';
+    var LIVE_EVERY = 5 * 60 * 1000;
+    var STALE_AFTER = 30 * 60; // seconds
+    var live = { short: '', rain: false, night: false, bird: '' };
+
+    function getJSON(path) {
+      return fetch(API + path, { cache: 'no-store' }).then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      });
+    }
+    function showLive(el, text) {
+      el.textContent = text;
+      el.hidden = !text;
+      var box = document.getElementById('live');
+      box.hidden = document.getElementById('liveWeather').hidden && document.getElementById('liveBirds').hidden;
+    }
+    function updateWeather() {
+      Promise.all([getJSON('/api/live').catch(function () { return null; }), getJSON('/api/forecast').catch(function () { return null; })])
+        .then(function (a) {
+          var c = a[0] && a[0].current, hour = a[1] && a[1].hourly && a[1].hourly[0];
+          var fresh = c && typeof c.temp === 'number' && Date.now() / 1000 - c.ts < STALE_AFTER;
+          live.rain = !!(c && c.rain_rate > 0);
+          live.short = live.rain ? (c.temp <= 34 ? 'Snowing' : 'Raining') : (hour ? hour.short : '');
+          live.night = !!(hour && !hour.day);
+          showLive(document.getElementById('liveWeather'), fresh ? (Math.round(c.temp) + '\u00B0 ' + live.short).trim() : '');
+        });
+    }
+    function updateBirds() {
+      getJSON('/api/birds').then(function (b) {
+        var latest = b.latest && b.latest[0], species = b.stats && b.stats.speciesToday;
+        live.bird = latest ? latest.com : '';
+        var count = species ? ' \u00B7 ' + species + ' species' : '';
+        showLive(document.getElementById('liveBirds'), latest ? 'Heard: ' + latest.com + count : '');
+      }).catch(function () { showLive(document.getElementById('liveBirds'), ''); });
+    }
+    function updateLive() {
+      if (document.hidden) return;
+      updateWeather();
+      updateBirds();
+    }
+    updateLive();
+    setInterval(updateLive, LIVE_EVERY);
 
     function rand(a, b) { return a + Math.random() * (b - a); }
     function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
@@ -508,14 +595,77 @@
       '<path d="M36,-10 Q40,-24 48,-26 M30,-11 Q30,-26 36,-30" fill="none" stroke-width="3"/>' +
       '</g></svg>';
 
+    /* visitors that link to the weather and bird pages */
+    function skyCloud(fill) {
+      return '<path d="M62,126 C34,126 22,92 50,80 C50,48 94,36 110,62 C132,34 182,48 176,84 C206,88 204,126 176,126 Z" ' +
+             'fill="' + fill + '" stroke="#1a1a1a" stroke-width="6" stroke-linejoin="round"/>';
+    }
+    function skySun(x, y, r) {
+      var rays = '';
+      for (var i = 0; i < 12; i++) {
+        var a = i * Math.PI / 6;
+        rays += '<path d="M' + (x + Math.cos(a) * (r + 8)) + ',' + (y + Math.sin(a) * (r + 8)) + ' L' +
+                (x + Math.cos(a) * (r + 24)) + ',' + (y + Math.sin(a) * (r + 24)) + '"/>';
+      }
+      return '<g stroke="#FFB02E" stroke-width="7" stroke-linecap="round">' + rays + '</g>' +
+             '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#FFD23F" stroke="#1a1a1a" stroke-width="6"/>';
+    }
+    function skyMoon() {
+      return '<path d="M150,22 A62,62 0 1 0 196,112 A50,50 0 1 1 150,22 Z" fill="#F4EBC8" stroke="#1a1a1a" stroke-width="6" stroke-linejoin="round"/>';
+    }
+    function skyDrops(color, shape) {
+      var out = '';
+      [68, 104, 140, 170].forEach(function (x, i) {
+        out += shape === 'snow'
+          ? '<circle cx="' + x + '" cy="' + (140 + (i % 2) * 8) + '" r="6" fill="' + color + '"/>'
+          : '<path d="M' + x + ',134 l-8,20" stroke="' + color + '" stroke-width="6" stroke-linecap="round"/>';
+      });
+      return out;
+    }
+    function weatherSVG() {
+      var s = live.short, art;
+      if (/thunder|storm/i.test(s)) art = skyDrops('#6FB7FF') + '<path d="M118,110 L98,146 L116,146 L104,172 L146,132 L124,132 L138,110 Z" fill="#FFD23F" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>' + skyCloud('#7C8796');
+      else if (/snow|flurr|sleet/i.test(s)) art = skyDrops('#FFFFFF', 'snow') + skyCloud('#C9D3DE');
+      else if (live.rain || /rain|shower|drizzle/i.test(s)) art = skyDrops('#6FB7FF') + skyCloud('#9AA6B5');
+      else if (/mostly cloudy|overcast|^cloudy|fog/i.test(s)) art = skyCloud('#E6EAF0');
+      else if (/partly/i.test(s)) art = (live.night ? skyMoon() : skySun(158, 56, 32)) + skyCloud('#F2F4F7');
+      else art = live.night ? skyMoon() : skySun(120, 82, 42);
+      return '<svg viewBox="0 0 240 180">' + art + '</svg>';
+    }
+    var BIRD_COLORS = [
+      [/cardinal/i, '#D6262B', '#A3161C', '#D6262B'],
+      [/blue jay|bluebird/i, '#3D7BD9', '#2452A3', '#F2F2F2'],
+      [/goldfinch/i, '#F6C915', '#1F1F1F', '#F6C915'],
+      [/robin/i, '#5A5F66', '#3E4247', '#E2702C'],
+      [/crow|raven|blackbird|grackle/i, '#2B2B33', '#17171C', '#2B2B33'],
+      [/woodpecker|flicker|chickadee|nuthatch/i, '#3A3A3F', '#F2F2F2', '#EDE6D8'],
+      [/titmouse|dove|mockingbird/i, '#9AA3AE', '#737C88', '#EDE6D8'],
+      [/wren|sparrow|thrush|hawk|owl/i, '#9A6B3F', '#6F4A2A', '#EAD9BE']
+    ];
+    function birdSVG() {
+      var c = ['', '#E8742A', '#B94F16', '#F7E3C9'];
+      BIRD_COLORS.forEach(function (b) { if (b[0].test(live.bird)) c = b; });
+      return '<svg viewBox="0 0 200 130"><g stroke="#F5EFE6" stroke-width="5" stroke-linejoin="round">' +
+        '<path d="M64,78 L14,96 L60,102 Z" fill="' + c[2] + '"/>' +
+        '<ellipse cx="102" cy="82" rx="50" ry="33" fill="' + c[1] + '"/>' +
+        '<path d="M70,102 C90,122 128,118 146,90 C126,104 96,108 70,102 Z" fill="' + c[3] + '"/>' +
+        '<circle cx="150" cy="58" r="23" fill="' + c[1] + '"/>' +
+        '<path d="M170,50 L196,58 L170,66 Z" fill="#F4A62A"/>' +
+        '<circle cx="156" cy="52" r="4.5" fill="#111" stroke="none"/>' +
+        '<g class="wingflap"><path d="M92,74 C96,34 72,14 44,10 C42,42 58,70 92,74 Z" fill="' + c[2] + '"/></g>' +
+        '</g></svg>';
+    }
+
     var VISITORS = {
+      weather: { svg: weatherSVG, w: [110, 150], sky: true, speed: 70, href: WEATHER_URL, label: function () { return 'Open the weather'; } },
+      bird:    { svg: birdSVG, w: [64, 92], sky: true, speed: 130, href: BIRDS_URL, label: function () { return 'See the latest birds'; } },
       fox:    { svg: foxSVG, w: [150, 220], ground: true, speed: 115, cls: 'fx trot' },
       bunny:  { svg: function () { return BUNNY; }, w: [95, 135], ground: true, speed: 150, hop: true },
       turtle: { svg: function () { return TURTLE; }, w: [115, 155], ground: true, speed: 45 },
       eagle:  { svg: function () { return EAGLE; }, w: [180, 240], sky: true, speed: 170 }
     };
-    var visitorPool = cfg.visitors || [];
-    var forceV = (location.search.match(/visitor=(bunny|turtle|eagle)/) || [])[1];
+    var visitorPool = (cfg.visitors || []).concat(['weather', 'bird']);
+    var forceV = (location.search.match(/visitor=(bunny|turtle|eagle|weather|bird)/) || [])[1];
     if (forceV) visitorPool = [forceV];
 
     var now = performance.now() / 1000;
@@ -718,8 +868,9 @@
         var kind = pick(visitorPool), V = VISITORS[kind];
         var vw = Math.min(V.w[1], Math.max(Math.min(V.w[0], W() * 0.36), W() * 0.17));
         var dir = Math.random() < 0.5 ? 1 : -1;
-        var vEl = document.createElement('div');
+        var vEl = document.createElement(V.href ? 'a' : 'div');
         vEl.className = 'visitor ' + (V.cls || '');
+        if (V.href) { vEl.href = V.href; vEl.setAttribute('aria-label', V.label()); }
         vEl.style.width = vw + 'px';
         vEl.innerHTML = V.svg();
         (V.sky ? back : front).appendChild(vEl);
